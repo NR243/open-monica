@@ -216,9 +216,11 @@ public class EPICS extends ExternalSystem {
     /** Channel connect timeout, decreases exponentially down to a minimum */
     private float itsCAConnectTimeout = 30;            // secs
     private float itsMinCAConnectTimeout = (float)0.2; // secs
+    private AbsTime itsStartTime;
 
     public ChannelConnector() {
       super("EPICS ChannelConnector");
+      itsStartTime = new AbsTime();
       try {
           String str = System.getenv("EPICS_CA_MAX_SEARCH_PERIOD");
           if (str != null)
@@ -271,11 +273,15 @@ public class EPICS extends ExternalSystem {
           theirLogger.debug("ChannelConnector: Attempting to connect " + newchannels.size() + "/" + asarray.size() + " pending channels");
           itsContext.pendIO(itsCAConnectTimeout);   
         } catch (Exception e) {
-          theirLogger.debug("ChannelConnector: pendIO: " + e);
+          //theirLogger.debug("ChannelConnector: pendIO: " + e);
         }
-	// Reduce the timeout after each attempt, down to a limit.
-	itsCAConnectTimeout = Math.max(itsMinCAConnectTimeout, itsCAConnectTimeout/2);
-
+	// Check if its more than 30 minutes since ChannelConnector was started
+	long minutesSinceStart = (long)(((RelTime)Time.diff(new AbsTime(), itsStartTime)).getAsSeconds())/60;
+	boolean enableConnectSlowdown = minutesSinceStart > 30;
+	if (enableConnectSlowdown) { // Reduce the timeout after each attempt, down to a limit.
+	  itsCAConnectTimeout = Math.max(itsMinCAConnectTimeout, itsCAConnectTimeout/2);
+        }
+	 
         // Check which channels connected successfully
         for (int i = 0; i < newchannels.size(); i++) {
           Channel thischan = newchannels.get(i);
@@ -366,7 +372,7 @@ public class EPICS extends ExternalSystem {
                   if (thistype == null) {
                     thischan.addMonitor(Monitor.VALUE | Monitor.ALARM, listener);
                   } else {
-		    theirLogger.debug("ChannelConnector: dbr type of PV " + thispv + " is " + thistype.toString());
+		    //theirLogger.debug("ChannelConnector: dbr type of PV " + thispv + " is " + thistype.toString());
                     // Needs to be monitored so data arrives as a specific type
                     thischan.addMonitor(thistype, 1, Monitor.VALUE | Monitor.ALARM, listener);
                   }
@@ -396,8 +402,10 @@ public class EPICS extends ExternalSystem {
 
         } catch (Exception e) {
         }
-	// Increase time between retries for remaining failed connections
-	itsCASearchPeriod = Math.min(itsMaxCASearchPeriod, itsCASearchPeriod * 2);
+	if (enableConnectSlowdown) { // Increase time between retries for remaining failed connections
+	  itsCASearchPeriod = Math.min(itsMaxCASearchPeriod, itsCASearchPeriod * 2);
+	}
+	//theirLogger.debug("ChannelConnector: " + minutesSinceStart + " minutes, connect timeout = " + itsCAConnectTimeout + " search period = " + itsCASearchPeriod/1000000);
       }
     }
   };
