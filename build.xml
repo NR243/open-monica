@@ -45,7 +45,7 @@
         <include name="**/*.au"/>
       </fileset>
     </jar>
-    <signjar jar="${jarname}" alias="monica" storepass="monica" keystore="signature.keys"/>
+    <!-- <signjar jar="${jarname}" alias="monica" storepass="monica" keystore="signature.keys"/> -->
   </target>
 
 
